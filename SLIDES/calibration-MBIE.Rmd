@@ -1,0 +1,552 @@
+---
+title: "Calibration of Weights"
+author: "Thomas Lumley"
+date: "5 February 2015"
+output:
+  slidy_presentation: default
+  ioslides_presentation:
+    mathjax: local
+    self_contained: no
+transitions: faster
+---
+
+
+## Stratified, unstratified, post-stratified
+
+- Sample stratified by region: $n_r$ is fixed, $\pi_i=n_r/N_r$ for $i$ in region $r$
+- Unstratified sample: $n_r$ is random, $\pi_i\approx n_r/N_r$
+- Post-stratified sample: $n_r$ is random, but we adjust $\pi_i$ to equal $n_r/N_r$, weight is $N_r/n_r$
+
+After post-stratification, 
+$$\hat N_r = \sum_{i\in\textrm{region}}\frac{1}{\pi_i} = n_r\times\frac{N_r}{n_r}=N_r$$
+
+Estimation is **exact** for $N_r$, improved for anything correlated with region. 
+
+```{r, echo=FALSE,message=FALSE}
+set.seed(2016-7-6)
+library(knitr)
+library(survey,warn.conflicts=FALSE)
+library(KernSmooth)
+options(scipen=2)
+knit_hooks$set(mar = function(before, options, envir) {
+    if (before) par(mar = c(4, 4, .1, .1))  # smaller margin on top and right
+})
+load("nhanessurvey.rda")
+load("esophsurvey.rda")
+```
+## Example:
+
+```{r}
+data(api)
+dclus1<-svydesign(id=~dnum, weights=~pw, data=apiclus1, fpc=~fpc)
+svymean(~api00, dclus1)
+svytotal(~enroll, dclus1)
+```
+
+## Example:
+
+```{r}
+pop.types <- data.frame(stype=c("E","H","M"), Freq=c(4421,755,1018))
+psclus1<-postStratify(dclus1, ~stype, pop.types)
+svymean(~api00, psclus1)
+svytotal(~enroll, psclus1)
+```
+
+##
+
+```{r}
+svytotal(~stype, dclus1)
+svytotal(~stype, psclus1)
+```
+## Too good to be true?
+
+- Post-stratification gains precision by using extra information: need to know $N_r$
+- Post-stratification is always beneficial **asymptotically**. 
+- Stratification is always beneficial **even in small samples.**
+- Post-stratified estimates can be **less** accurate if  the post-strata are too small or the correlation is too weak. 
+
+
+
+```{r, echo=FALSE,message=FALSE}
+data(api)
+dclus1<-svydesign(id=~dnum, fpc=~fpc, data=apiclus1)
+```
+
+## Regression estimator of total
+
+Suppose we want $T_Y$, population total of $Y$, and we know $T_X$, population total of $X$, for some auxiliary variable $X$.
+
+Horvitz--Thompson estimator is
+$$\hat T_y = \sum_{i=1}^N \frac{R_i}{\pi_i}Y_i$$
+
+Or, we could fit a regression model to the sample: $E[Y]=\alpha+\beta X$ and use the known information about $X$.
+
+## Regression estimator
+$$\tilde T_y =  \sum_{i=1}^N \frac{R_i}{\pi_i}(Y_i-\hat\alpha-\hat\beta X_i)+\sum_{i=1}^N(\hat\alpha+\hat\beta X_i)$$
+First term is zero by construction (no assumptions needed)
+
+Second term is 
+$$\sum_{i=1}^N(\hat\alpha+\hat\beta X_i) = N\hat\alpha+T_X\hat\beta$$
+so we only need $T_X$, not individual $X$ values.
+
+## Efficiency gain
+Rewrite as
+$$\tilde T_y =  \sum_{i=1}^N \frac{R_i}{\pi_i}(Y_i-\alpha-\beta X_i)+\left(N\alpha+T_X\beta\right)+\left(N(\hat\alpha-\alpha)+T_X(\hat\beta-\beta)\right)$$
+
+- Second term has no uncertainty; third term has std error proportional to $N/\sqrt{n}$, first term has standard error proportional to $N$.
+- First term has smaller standard error than HT estimator, because residual variance is smaller than total variance.
+
+$\tilde T_Y$ is more precise than $\hat T_Y$, at least asymptotically.
+
+## Bias correction
+
+To the extent that $X$ explains the correlation between $Y$ and non-response, calibration will reduce non-response bias
+
+- the **real** reason it's used in most surveys
+- harder to say anything precise about, so not covered so much in theory
+
+
+
+## Calibration of weights
+
+$\tilde Y$ is a fitted value from linear regression, so it must be a weighted sum of $Y_i$, with weights that depend only on $X$
+
+For **any** variable $Y$, we can write
+$$\sum_{i\in\textrm{sample}}\tilde w_i Y_i = \tilde T_Y$$
+
+In particular
+$$\sum_{i\in\textrm{sample}}\tilde w_i X_i = \tilde T_X$$
+so the calibrated weights $\tilde w_i$ give exactly correct population totals for the calibration variable $X$, and improved totals for variables correlated with $X$.
+
+## Example:
+
+```{r}
+pop.totals<-c(`(Intercept)`=6194, stypeH=755, stypeM=1018)
+dclus1cal <- calibrate(dclus1, ~stype+api99, c(pop.totals, api99=3914069))
+svymean(~api00, dclus1)
+svymean(~api00, dclus1cal)
+```
+Roughly 98% variance reduction, matching correlation between `api00` and `api99`
+
+## Format of population data
+
+The `formula` argument specifies a regression design matrix, and the `population` argument is the population column totals of this matrix
+
+If you fitted a regression model with predictors `~stype+api99` the columns would be 
+
+- `(Intercept)`: sum is population size
+- `stypeH`: sum is number of high schools
+- `stypeM`: sum is number of middle schools
+- `api99`: sum is population sum of `api99`
+
+---
+
+A function
+
+```{r}
+calibrate_names <-function(formula, design){
+  mf<-model.frame(formula, model.frame(design))
+  mm<-model.matrix(formula,mf[1,,drop=FALSE])
+  colnames(mm)
+}
+calibrate_names(~stype+api99, dclus1)
+calibrate_names(~stype*api99, dclus1)
+```
+
+## General calibration of weights
+Calibrated weights can be negative:
+
+- official statistics agencies often don't like this
+- some software doesn't like this
+
+If we define $\tilde w_i$ as the "closest" values to $w_i$ that satisfy
+$$\sum_{i\in\textrm{sample}}\tilde w_i X_i = \tilde T_X$$
+we can choose our distance function to make negative weights infinitely distant.
+
+## Distance and calibration
+Distances are from $r=(\tilde w/w)$ to 1
+
+- linear regression calibration: $d(r) = (r-1)^2$
+- generalised raking: $d(r) = r\log r -r$
+- logit calibration: 
+$$d(r)=(r-L)\log\frac{(r-L)}{1-L}+(U-r)\log\frac{(U-r)}{U-1}$$
+
+Logit calibration always has bounds $(L,U$). Bounds can be added to linear or raking by setting $d(r)=\infty$ at the bounds.
+
+Bounds may not be achievable: obviously $L=U$ would be impossible.
+
+## Best distance function?
+
+All distance functions are **asymptotically** equivalent: as $n\to\infty$, $r\to 1$
+
+Difference is mostly a matter of standard practice in your country.  
+
+I like raking, because negative weights are inconvenient and it doesn't need any additional parameters.
+
+---
+
+```{r}
+dclus1rake <- calibrate(dclus1, ~stype+api99, 
+          c(pop.totals, api99=3914069), calfun="raking")
+dclus1logit <- calibrate(dclus1, ~stype+api99, 
+          c(pop.totals, api99=3914069), calfun="logit",bounds=c(0.5,2))
+```
+
+---
+
+```{r}
+svymean(~api00, dclus1cal)
+svymean(~api00, dclus1rake)
+svymean(~api00, dclus1logit)
+```
+
+## Traditional raking
+
+Calibration with $d(r) = r\log r -r$ is called *raking* because it's the same estimator as the traditional raking (iterative proportional fitting) algorithm:
+
+Suppose we have two post-stratification variables $X$ and $Z$.  Could post-stratify on `X*Z`, but
+
+- we may not know the joint distribution
+- the cells might be too small
+
+Raking: post-stratify on $X$ then on $Z$, iterate until it stops changing.
+
+- matches *marginal totals* for the `X*Z` table to the population
+- works with margins of any dimension, eg rake on `X1*X2`, `X2*X3`, `X3*X1`
+- simple algorithm, guaranteed to converge if no zeroes in table
+
+## Raking or calibration
+
+Now we have calibration, no real advantage to raking
+
+- `calibrate()` can use the raking distance function
+- `calibrate()` can accept list of margins as description of population
+
+---
+
+```{r}
+## Input in the same format as rake() for classical raking
+pop.table <- xtabs(~stype+sch.wide,apipop)
+pop.table2 <- xtabs(~stype+comp.imp,apipop)
+dclus1r<-rake(dclus1, list(~stype+sch.wide, ~stype+comp.imp),
+               list(pop.table, pop.table2))
+gclus1r<-calibrate(dclus1, formula=list(~stype+sch.wide, ~stype+comp.imp), 
+     population=list(pop.table, pop.table2),calfun="raking")
+svymean(~api00+stype, dclus1r)
+svymean(~api00+stype, gclus1r)
+```
+
+## Unattainable bounds
+
+If bounds are specified and not attainable, use wider bounds and **trim** the weights:
+
+- set weights above bound to bound
+- reallocate the weight that was removed over all other observations
+- iterate if necessary
+
+
+
+## A Danish example: 
+
+**What I did on my summer holidays**
+
+Population data on 200,000 people:
+
+- age, gender ethnicity
+- income, household income, household type
+
+Sample data on 3500 people, with non-response
+ 
+- business travel
+- holiday travel
+- foreign visitors
+
+---
+
+```{r, echo=FALSE, }
+library(survey,warn=FALSE,quietly=TRUE)
+set.seed(2015-6-29)
+```
+
+```{r}
+social<-read.csv("~/STATS_DENMARK/social_data/social_sample.csv")
+population<-read.csv("~/STATS_DENMARK/social_data/social_population.csv")
+names(social)
+dim(social)
+names(population)
+```
+
+## Missing data 
+
+```{r}
+summary(social)
+```
+
+## Merge to add population data
+```{r}
+social <- merge(social, population, by="Id",keep=FALSE)
+dim(social)
+names(social)
+```
+## Two-phase sampling
+
+```{r}
+social$popsize<-nrow(population)
+social$nonmissing <- !with(social, 
+                       is.na(Leisure) | is.na(Business) | is.na(Cottage))
+soc_gross<-svydesign(id=~1,data=social,fpc=~popsize)
+soc_des<-twophase(id=list(~1,~1), strata=list(NULL,NULL),
+                  fpc=list(~popsize, NULL),
+                  subset=~nonmissing, data=social)
+```
+
+## 
+
+```{r}
+c(Income=mean(population$Income), Male=mean(population$Gender==1))
+svymean(~Income+factor(Gender),design=soc_gross)
+svymean(~Income+factor(Gender),design=soc_des)
+```
+
+## Calibrate to phase 1
+
+Calibration of phase 2 to phase 1 for a discrete variable is basically "Response Homogeneity Groups": no auxiliary population data needed.
+
+```{r}
+soc_rhg <- calibrate(soc_des, phase=2, 
+                     formula=~Ethnicity+factor(AgeClass)+factor(HhType),
+                     calfun="raking")
+```
+
+## After calibration
+
+```{r}
+svymean(~Income+factor(Gender),design=soc_des)
+svymean(~Income+factor(Gender),design=soc_rhg)
+```
+
+##
+
+```{r}
+svymean(~factor(HhType),soc_gross)
+svymean(~factor(HhType),soc_des)
+```
+
+##
+
+```{r}
+svymean(~factor(HhType),soc_gross)
+svymean(~factor(HhType),soc_rhg)
+```
+
+
+
+##
+
+```{r}
+hist_net<-svysmooth(~Income, design=soc_des)
+hist_rhg<-svysmooth(~Income, design=soc_rhg)
+```
+
+##
+
+```{r}
+plot(hist_net,col="orange",lwd=2, xlim=c(0,1000))
+lines(hist_rhg,col="blue",lty=2)
+```
+
+## Does it matter?
+
+```{r}
+svymean(~Leisure+Business+Cottage, design=soc_des)
+svymean(~Leisure+Business+Cottage, design=soc_rhg)
+```
+
+##
+
+```{r}
+svymean(~I(Leisure>0)+I(Business>0)+I(Cottage>0), design=soc_des)
+svymean(~I(Leisure>0)+I(Business>0)+I(Cottage>0), design=soc_rhg)
+```
+
+## Calibrate to population
+
+Or, could treat net sample as the sample and calibrate to the population
+
+Need population totals for column sums of design matrix, or list of marginal tables
+
+```{r}
+pop.frame<-model.frame(~Ethnicity+factor(AgeClass)+factor(HhType), 
+                       population)
+pop.sums<-colSums(model.matrix(~Ethnicity+factor(AgeClass)+factor(HhType),
+                               pop.frame))
+pop.sums
+```
+
+##
+
+```{r}
+soc_net<-svydesign(id=~1,data=subset(social,nonmissing),fpc=~popsize)
+
+soc_cal <- calibrate(soc_net, population=pop.sums,
+                     formula=~Ethnicity+factor(AgeClass)+factor(HhType),
+                     calfun="raking")
+```
+
+## After calibration
+
+```{r}
+svymean(~Income+factor(Gender),design=soc_net)
+svymean(~Income+factor(Gender),design=soc_cal)
+```
+
+##
+
+```{r}
+svymean(~factor(HhType),soc_net)
+svymean(~factor(HhType),soc_cal)
+```
+
+##
+
+```{r}
+svymean(~factor(HhType),soc_net)
+svymean(~factor(HhType),soc_cal)
+```
+
+
+
+##
+
+```{r}
+hist_net<-svysmooth(~Income, design=soc_net)
+hist_cal<-svysmooth(~Income, design=soc_cal)
+```
+
+##
+
+```{r}
+plot(hist_net,col="orange",lwd=2, xlim=c(0,1000))
+lines(hist_cal,col="blue",lty=2)
+```
+
+## Does it matter?
+
+```{r}
+svymean(~Leisure+Business+Cottage, design=soc_net)
+svymean(~Leisure+Business+Cottage, design=soc_cal)
+```
+
+##
+
+```{r}
+svymean(~I(Leisure>0)+I(Business>0)+I(Cottage>0), design=soc_net)
+svymean(~I(Leisure>0)+I(Business>0)+I(Cottage>0), design=soc_cal)
+```
+
+
+## Beyond totals
+
+Precision gain for $T_Y$ from calibrating on $X$ depends on correlation between $X$ and $Y$.
+
+How does this translate to other statistics such as regression coefficients?
+
+- Any statistic is approximately the total of its influence functions
+- To calibrate for estimating $\hat\beta$, use an auxiliary variable correlated with the influence functions
+- Variables in the model will **not** be strongly correlated with the influence function. 
+
+
+## Example
+
+In linear regression of $Y$ on $X$, influence function for $\beta$ is proportional to $$(X-\bar X)(Y-\hat Y)$$
+which is uncorrelated with $X$ and $Y$.
+
+
+## Choice of calibration variable
+
+
+- Optimal choice is $E[U(\beta)\mid \textrm{population/Phase I data}]$
+- This isn't feasible, it is too complicated and depends on unknown things.
+- A good **practical** choice is influence functions for a model with imputed Phase II information. 
+
+[Breslow et al, 2009 Am J Epi, Stat Biosci]
+
+<ul>
+<li>  Fit imputation model to predict $X$ from Phase I $Y$ and $Z$
+<li>  Fit analysis model to full data using imputed $X$ even when real $X$ is available
+<li>  Extract influence functions, and use for calibration
+<li> Fit analysis model to calibrated Phase II sample
+</ul>
+
+## Example: Regression in California schools 
+
+We want to fit regression of `api00` on `ell` and `mobility`
+
+Assume we know the predictor variables and `api99` on the population, measure `api00` in the sample.
+
+We could impute `api00` by `api99`, since they are highly correlated
+
+## What are the correlations like?
+
+```{r}
+pop_99 <- lm(api99~ell+meals,data=apipop)
+pop_00 <- lm(api00~ell+meals,data=apipop)
+inffun99 <- dfbeta(pop_99)
+inffun00 <- dfbeta(pop_00)
+```
+
+## Influence fn vs outcome
+
+```{r}
+plot(inffun00[,"ell"],apipop$api00)
+```
+
+## Influence fn vs predictor
+
+```{r}
+plot(inffun00[,"ell"],apipop$ell)
+```
+
+## Influence fn vs influence fn
+
+```{r}
+plot(inffun00[,"ell"],inffun99[,"ell"])
+```
+
+## Calibration
+
+```{r}
+colSums(apipop[,c("api99","ell","meals")])
+insample <- match(apiclus1$snum,apipop$snum)
+dclus1<-update(dclus1, inf1=inffun99[insample,1],
+               inf2=inffun99[insample,2],
+               inf3=inffun99[insample,3])
+cal_variables = calibrate(dclus1, ~api99+ell+meals, 
+                          population=c(6194, 3914069, 141685, 297533 ))
+cal_inffun = calibrate(dclus1, ~inf1+inf2+inf3, 
+                          population=c(6194,0,0,0))
+```
+
+## Calibration on variables
+
+```{r}
+coef(summary(svyglm(api00~ell+meals, dclus1)))
+coef(summary(svyglm(api00~ell+meals, cal_variables)))
+```
+
+## Calibration on influence functions
+
+```{r}
+coef(summary(svyglm(api00~ell+meals, dclus1)))
+coef(summary(svyglm(api00~ell+meals, cal_inffun)))
+```
+
+## Calibration
+
+- Calibration, raking, post-stratification provide a way to add population or full-cohort information to a survey
+- No additional assumptions are needed, and precision is asymptotically always better
+- When estimating a regression parameter, think of it as sum of influence functions
+    * a good calibration variable will be correlated with the influence functions
+    * influence functions from a related model are one good choice.
+  
+
