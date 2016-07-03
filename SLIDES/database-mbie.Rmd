@@ -1,0 +1,132 @@
+---
+title: "Databases"
+author: "Thomas Lumley"
+date: "29 June 2016"
+output: slidy_presentation
+---
+```{r echo=FALSE}
+library(survey, quietly=TRUE, warn=FALSE)
+```
+## Two scales
+
+- whole dataset is too big for memory in R, but working set of variables is ok: *database-backed survey objects*
+- even working set of variables is too big (eg American Community Survey): *computing in the database*
+
+## Database-backed survey objects
+
+All the `survey` functions specify variables by a model formula and a design object
+
+- survey object contains design metadata and pointer to database table
+- look at the model formula to see which variables are needed
+- load just those variables from the database
+- proceed as usual
+
+Read-only database access: transformations (`update`) are done as the data are read
+
+Can use `calibrate` but not `as.svrepdesign` (currently)
+
+## Putting the IVS data into a database
+
+```
+setwd("~/MBIE/IVS")
+alltables<-list.files(pattern="csv")
+allnames<-sub("vw_IVS(.+)\\.csv$","\\1",alltables)
+allnames<-gsub("[^a-zA-z]+","_",allnames)
+
+library(RSQLite)
+sqlite<-dbDriver("SQLite")
+ivs<-dbConnect(sqlite,"ivs.db")
+for(i in 1:length(alltables)){
+	df<-read.csv(alltables[i])
+	dbWriteTable(ivs,allnames[i],df)
+	print(allnames[i])
+}
+```
+
+## Using the database
+
+Check that it's there
+```{r}
+path_to_db <- "~/MBIE/IVS/ivs.db"
+library(RSQLite)
+sqlite<-dbDriver("SQLite")
+ivs<-dbConnect(sqlite, path_to_db)
+dbListTables(ivs)[1:4]
+dbDisconnect(ivs)
+```
+
+"Real" databases would also need username, password, perhaps host and port, in the `dbConnect` call. 
+
+## Defining a survey object
+
+```{r}
+path_to_db <- "~/MBIE/IVS/ivs.db"
+ivs_des <- svydesign(id=~PSU,weights=~PopulationWeight,data="SurveyMainHeader",
+                     dbtype="SQLite", dbname=path_to_db)
+ivs_des
+isIdCurrent<-dbIsValid #quiet the warning
+```
+
+## Using IVS
+```{r}
+svytable(~pmin(10,NumberOfVisitsToNZ),ivs_des)
+svymean(~NoDaysInNZ,ivs_des,na.rm=TRUE)
+```
+
+---
+
+```{r}
+svyby(~WeightedSpend,~AwareHobbitMadeInNZ,svymean,design=ivs_des,na.rm=TRUE)
+```
+
+## Using multiple tables
+```
+path_to_db <- "~/MBIE/IVS/ivs.db"
+library(RSQLite)
+sqlite<-dbDriver("SQLite")
+ivs<-dbConnect(sqlite, path_to_db)
+dbGetQuery(ivs,"CREATE VIEW social AS 
+        SELECT * FROM SurveyMainHeader LEFT JOIN SocialMediaUsage 
+        ON SurveyMainHeader.SurveyResponseID = SocialMediaUsage.SurveyResponseID")
+dbDisconnect(ivs)
+```
+
+---
+
+```{r}
+path_to_db <- "~/MBIE/IVS/ivs.db"
+ivs_soc <- svydesign(id=~PSU,weights=~PopulationWeight,data="social",
+                     dbtype="SQLite", dbname=path_to_db)
+dim(ivs_soc)
+svytotal(~SocialMediaType,ivs_soc,na.rm=TRUE)
+```
+
+---
+
+```{r}
+s<-svyby(~TripStage, ~SocialMediaType, svymean,design=ivs_soc,na.rm=TRUE,keep.var=FALSE)
+print(s,digits=2)
+```
+
+## Tidying up
+
+```{r}
+close(ivs_des)
+close(ivs_soc)
+```
+
+Doesn't really matter for SQLite, but might for a separate database server. 
+
+## sqlsurvey
+
+Survey computations can mostly be divided into
+
+- simple sums and products on whole data vectors
+- more complex matrix and maths operations on small summary statistics
+
+Delegate the sums and products to a database (currently MonetDB), by having R write SQL code. 
+
+Allows American Community Survey analysis on commodity laptop. 
+
+(Plans to rewrite using `dplyr` as middleware)
+

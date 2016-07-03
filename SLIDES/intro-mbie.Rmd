@@ -1,0 +1,457 @@
+---
+title: "Survey sampling and R"
+author: "Thomas Lumley"
+date: "6-7 July 2016"
+output: slidy_presentation
+---
+
+## Introductions {.columns-2}
+Thomas Lumley
+
+Developer of R survey package
+
+Applied research in cardiovascular epi/genetics
+
+**Introduce yourselves (briefly). What do you want to get from the course**
+
+
+
+
+```{r, echo=FALSE,message=FALSE}
+library(knitr)
+library(survey,warn.conflicts=FALSE)
+library(KernSmooth)
+options(scipen=2)
+knit_hooks$set(mar = function(before, options, envir) {
+    if (before) par(mar = c(4, 4, .1, .1))  # smaller margin on top and right
+})
+```
+
+## Outline
+
+**Today**
+
+- Basic ideas of complex survey sampling
+- Graphics
+- Regression modelling of survey data
+
+**Tomorrow**
+
+- Calibration of weights to the population or cohort
+- Exploring the *Survey of Adult Skills*
+- Larger datasets: database-backed designs, `sqlsurvey`
+
+[Including chunks of time for you to work on examples that we then discuss].
+
+## Important Notice
+
+<div class="columns-2">
+Please ask questions.  
+
+That's the benefit of having me here rather than just a pile of papers.
+
+<img src="pile-of-papers2.jpg" style="width: 400px;"/>
+</div>
+
+
+## Survey sampling
+Three basic concepts
+
+- stratification
+- clustering
+- unequal sampling
+
+## Stratification
+
+A sample of 1000 people from New Zealand would on average contain
+
+- 141 people of Māori ethnicity
+- 859 non-Māori
+
+but the actual numbers would vary. 
+
+Part of the variance of any statistic computed from the sample comes from the variation in the number of people from each ethnicity
+
+The mean of a sample with 160 Māori will be different from a sample with only 110 
+
+## Stratification
+
+If we can fix the number of people sampled in each ethnicity (region, agegroup, etc), we can eliminate between-ethnicity differences from the variance of our statistics, increasing precision.  This is called a **stratified sample**, the regions are **strata**
+
+Taking a stratified sample is possible only if we have a population list that includes the stratum for each person. ("sampling frame")
+
+The extra precision comes from using the extra information in this population list.
+
+Stratification **always** decreases variance, perhaps not by very much.
+
+
+*[Taking a subset of a survey breaks stratification: eg, you didn't constrain the number of Māori sampled from the Auckland region, so you don't get the (full) benefit of stratification looking just at the Auckland region]*
+
+
+## Clustering
+If a survey involves a physical visit to each participant, it is less expensive to sample people who are physically close
+
+- homes in the same neighbourhood
+- students in the same classroom
+- workers in the same factory
+- medical records in the same hospital
+- ballots at the same voting site
+
+We often sample a small number of clusters and then sample people from each cluster.
+
+Cluster sampling **increases** variance for the **same sample size**, but may **reduce** variance for the **same cost**
+
+## Unequal probabilities
+Either deliberately or as a result of cluster sampling, individuals in the population may not have the same probability of being sampled
+
+The sampling probability for each individual in the sample must be known (or estimated, when there is non-response). It is written $\pi_i$ for individual $i$.
+
+Unequal probability sampling **increases** variance for **whole-population means**, but may **decrease** variance for **subpopulation statistics** and for **regression parameters**
+
+## Notation
+
+- $N$  population size
+- $n$  sample size
+- $\pi_i$ probability that unit $i$ would be sampled
+- $\pi_{ij}$ probability that both units $i$ and $j$ would be sampled
+- $w_i$ weights, usually (adjusted versions of) $\pi_i^{-1}$
+- $R_i$ sampling indicator: $E[R_i]=\pi_i$
+
+## Estimating population totals
+
+Population total $T_X$ of $X$ is
+$$T_X = \sum_{i=1}^N X_i$$
+
+Horvitz-Thompson estimator is
+$$\hat T = \sum_{i=1}^N \color{red}{\frac{R_i}{\pi_i}} X_i$$
+
+Since $E[R_i/\pi_i]=1$, $\hat T$ is unbiased as long as $\pi_i>0$ for all units in the population (or think of $\pi_i>0$ as *defining* the population)
+
+## Estimating variances
+
+$$\mathrm{var}\left[ \sum_{i=1}^N \frac{R_i}{\pi_i} X_i\right]=\sum_{i,j=1}^N \frac{X_iX_j}{\pi_i\pi_j}\textrm{cov}[R_i,R_j]$$
+
+Estimate this using observed pairs $(i,\,j)$ 
+
+$$\widehat{\mathrm{var}}\left[ \sum_{i=1}^N \frac{R_i}{\pi_i} X_i\right]=\sum_{i,j=1}^N \color{red}{\frac{R_iR_j}{\pi_{ij}}}\frac{X_iX_j}{\pi_i\pi_j}\textrm{cov}[R_i,R_j]$$
+
+## More notation
+
+ $\Delta_{ij}=\textrm{cov}[R_i,R_j]$, $\check{X_i}= X_i/\pi_i$,  $\check{\Delta}_{ij}=\Delta_{ij}/\pi_{ij}$
+
+The Horvitz--Thompson estimator: 
+
+$$\hat T_x= \sum_{i\in\textrm{sample}} \check{X}_i$$
+
+and its variance:
+
+$$\widehat{\textrm{var}}\left[\hat T_x\right]= \sum_{i,j\in\textrm{sample}} \check{X}_i\check{X}_j\check{\Delta}_{ij}$$
+
+[there are simpler computational formulas in special cases]
+
+
+
+## Estimating everything else
+
+If a parameter $\theta$ maximises or minimises an objective function 
+$$ T_m(\theta)=\sum_{i=1}^N m_i(\theta)=0$$
+
+it can be estimated by maximising or minimising
+$$ T_m(\theta)=\sum_{i\in\textrm{sample}} \check{m}_i(\theta)=0$$
+
+---
+
+If a parameter $\theta$ solves an estimating equation
+
+$$T_U(\theta)=\sum_{i=1}^N U_i(\theta) = 0$$
+
+it can be estimated by solving
+
+$$\hat T_U(\theta)=\sum_{i\in\textrm{sample}} \check{U}_i(\theta)=0$$
+
+That is, apply sampling weights $\pi_i^{-1}$ to each term.
+
+## Standard errors
+
+The delta-method gives a 'sandwich' variance
+
+$$\widehat{\textrm{var}}[\hat\theta] = \left(\frac{\partial T_U(\theta)}{\partial\theta}\right)^{-1}\widehat{\textrm{var}}\left[\hat T_U\right]\left(\frac{\partial T_U(\theta)}{\partial\theta}\right)^{-1}$$
+
+[Essentially the same as the HC and HAC 'sandwich' variances in econometrics]
+
+## Resampling
+
+Analogs of the bootstrap and jackknife:
+
+- *JK1* jackknife leaving out one cluster at a time
+- *JKn* stratified version of JK1
+- *BRR* split data into half, lots of times
+- *bootstrap* resample clusters (several variants exist)
+
+Usually implemented by including **replicate weights** in the data file (set a weight to 0 to omit a cluster)
+
+## Replicates
+
+$$\widehat{var}\left[\hat T\right] = k\sum_{r=1}^R a_r (T^*_r- \hat T)^2$$
+
+(or use $\bar T^*$ instead of $\hat T$)
+
+Jackknife has $ka_r\sim 1$, bootstrap and BRR have $ka_r\sim 1/R$.
+
+As in iid sampling, jackknife doesn't work for quantiles. 
+
+
+## Theory
+
+Asymptotic theory for parametric models follows easily.
+
+For semiparametric models, the theory is more limited, because the available limit theorems are much less general.
+
+Everyone works as if the theory will transfer, but the mathematicians haven't caught up yet.
+
+## Multistage sampling
+
+
+Take a sample, then take a subsample in ways that don't depend on what other units were sampled
+
+- Sample schools, then sample classrooms within schools
+- Sample counties, then sample neighbourhoods within counties
+- Sample universities, then sample academics stratified by department within each university
+
+$$\pi_i = \Pr(\textrm{chosen at stage 1})\times\Pr(\textrm{chosen at stage 2} | \textrm{in stage 1})$$
+
+
+## Multiphase sampling
+
+Take a sample, then use the *observed data values* to guide the choice of a subsample
+
+- Case-control sampling: sample a cohort, choose subsample stratified by case status
+- Case-cohort sampling: sample a cohort, take a random subcohort, augment with cases
+- Random digit dialling, then follow up only those in target groups
+
+$$\pi^*_i = \Pr(\textrm{chosen at stage 1})\times\Pr(\textrm{chosen at stage 2} | \textrm{full stage 1 sample})$$
+
+$\pi_i^*$ is **not** $\pi_i$, but can be used the same way to make weights.
+
+## Multiphase variances
+
+$$\hat T_x =\sum_{i\in\textrm{sample}} \frac{X_i}{\pi^*_i}$$
+
+$$\textrm{var}[\hat T_x] = \textrm{var}\left[E\left[\hat T_x | \textrm{phase 1}\right]\right]+E\left[\textrm{var}\left[\hat T_x | \textrm{phase 1}\right]\right]$$
+
+Replace expectations by weighted averages, and use sandwich variances, and this becomes tractable.
+
+As with single-phase sampling, variances for everything except totals come from delta method.
+
+
+## Population or Process
+
+Official Statistics is often about the finite population.
+
+Other people usually want to make inference about data-generating process, not finite population. 
+
+Technically, should be treated like a multiphase problem. 
+
+In practice, population variance is $O_p(N^{-1})$, often negligible compared to sample variance $O_p(n^{-1})$ 
+
+We often treat the population infinite, and the same as the process.
+
+
+## Examples: mean
+
+The population mean $\mu$ solves 
+$$\sum_{i=1}^N (X_i-\mu)=0$$
+
+The estimated mean solves
+$$\sum_{i\in\textrm{sample}} w_i(X_i-\mu)=0$$
+
+Rearranging,
+$$\hat\mu_x = \frac{\hat T_x}{\sum_i w_i}=\frac{\hat T_x}{\hat N}$$
+
+
+## Why not divide by N?
+
+- $\hat N$ is what the formula gives
+- It often gives better performance, because $\hat T$ and $\hat N$ correlated
+- Sometimes (eg, in cluster sampling) we don't know $N$
+- When we **do** know $N$, the weights are usually *calibrated* so $\hat N=N$
+
+
+## Examples: median
+
+The population median $m$ solves 
+
+$$\sum_{i=1}^N (X_i>m)-1/2=0$$
+
+The estimated median solves
+
+$$\sum_{i\in\textrm{sample}} w_i\left((X_i-m)-1/2\right)=0$$
+
+## Examples: ratio
+
+A population ratio $r=T_y/T_x$ solves 
+
+$$\sum_{i=1}^N Y_i-rX_i=0$$
+
+The estimated ratio solves
+
+$$\sum_{i\in\textrm{sample}} w_i(Y_i-rX_i)=0$$
+
+
+## Limitations
+ 
+
+This linearisation approach does not work for mixed models, because the likelihood involves covariances between observations, the score function is not a sum over $i$. 
+
+
+Also doesn't work for $U$-statistics (eg, Wilcoxon rank-sum is no longer the same as Mann-Whitney $U$)
+
+
+## Describing (multistage) surveys to R
+
+- Identifiers for sampling units (at each stage, optionally)
+- Identifiers for strata (at each stage, optionally)
+- Weights (or sampling probabilities at each stage, or population sizes at each stage)
+- Population sizes at each stage (optionally)
+
+`svydesign()` returns a survey design object containing data and design information.
+
+## Example: California schools
+ 
+Academic Performance Index: standardised test in schools
+
+Population: 6194 schools in California, in 757 districts.
+
+- a cluster sample of all schools in 15 districts
+- a stratified unequal sample of 100 elementary schools, 50 middle schools, 50 high schools
+- a two-stage cluster sample of 40 districts and up to 5 schools from each
+
+```{r, echo=FALSE}
+library(survey,quietly=TRUE,warn=FALSE)
+suppressMessages(library(KernSmooth,quietly=TRUE))
+data(api)
+apiclus2$stype = factor(as.character(apiclus2$stype),levels=c("E","M","H"))
+apiclus1$stype = factor(as.character(apiclus1$stype),levels=c("E","M","H"))
+apistrat$stype = factor(as.character(apistrat$stype),levels=c("E","M","H"))
+apiclus2$scaledw = apiclus2$pw*6194/sum(apiclus2$pw)
+```
+
+
+## Cluster sample
+ 
+Using $w_i =M/m$ 
+```{r}
+dclus1<-svydesign(id=~dnum, fpc=~fpc, data=apiclus1)
+svytotal(~enroll, dclus1)
+```
+
+## Cluster sample
+ 
+Rescaling $w_i$ to sum to known $N=6194$ (calibration)
+```{r}
+dclus1r<-svydesign(id=~dnum, weights=~pw, data=apiclus1,fpc=~fpc)
+svytotal(~enroll, dclus1r)
+```
+
+Estimate is improved: true $T_{\textrm{enroll}}= 3811472$
+
+## Stratified sample
+ 
+```{r}
+dstrat<-svydesign(id=~snum, strata=~stype, fpc=~fpc, data=apistrat)
+svytotal(~enroll, dstrat)
+dstrat<-svydesign(id=~1, strata=~stype, fpc=~fpc, data=apistrat)
+svytotal(~enroll, dstrat)
+```
+
+## Two-stage cluster sample
+ 
+Using  $w=\pi_i^{-1}=\frac{N_i}{n_i}\frac{M}{m}$ 
+```{r}
+dclus2<-svydesign(id=~dnum+snum, data=apiclus2,fpc=~fpc1+fpc2)
+svytotal(~enroll, dclus2, na.rm=TRUE)
+```
+
+Rescaling $w_i$ to sum to known $N=6194$
+```{r}
+dclus2<-svydesign(id=~dnum+snum, weights=~scaledw, 
+                  data=apiclus2,fpc=~fpc1+fpc2)
+svytotal(~enroll, dclus2, na.rm=TRUE)
+```
+
+## Summaries
+ 
+```{r}
+means <- svymean(~api00+ell+comp.imp+enroll, dclus2,na.rm=TRUE)
+means
+```
+## Summaries
+
+```{r}
+coef(means)
+SE(means)
+vcov(means)[1:2,]
+```
+
+## Summaries
+
+```{r}
+svyquantile(~api00, dclus2, quantile=c(0.25,0.5,0.75),ci=TRUE)
+```
+
+## Summaries
+The design objects handle subpopulations transparently
+
+```{r}
+svyby(~api00+ell, ~comp.imp, design=dclus2,svymean)
+svymean(~api00, subset(dclus2, stype=="E"))
+```
+
+## Tables
+
+```{r}
+svytable(~comp.imp+stype,dclus1,round=TRUE)
+```
+
+## Tests in tables
+
+- Pearson $X^2$ in estimated population table (Rao--Scott score test, **default**)
+- Wald test for interactions (*not as good*)
+- LRT in estimated population table (Rao--Scott LRT)
+
+```{r}
+summary(svytable(~comp.imp+stype,dclus1,round=TRUE))
+```
+
+## Tests in tables
+```{r}
+svychisq(~comp.imp + stype, design = dclus1,statistic="saddlepoint")
+svychisq(~comp.imp + stype, design = dclus1,statistic="adjWald")
+```
+
+## or loglinear models
+
+```{r}
+a<-svyloglin(~stype+comp.imp,dclus1)
+b<-update(a,~.^2)
+anova(a,b)
+```
+
+## Technical details
+
+Tests based on the 'working' score or pseudo likelihood ratio do not have $\chi^2_p$ asymptotic distributions (Wald-type tests do)
+
+Distribution is linear combination of $p$ $\chi^2_1$ distributions, with coefficients based on eigenvalues of 'design effect' matrix: a quadratic form in Normals.
+
+- Traditional approximation: Satterthwaite $\chi^2_q$ where $q$ matches coefficient of variation
+- Satterthwaite bad in extreme tails: saddlepoint or numerical inversion of characteristic function is better
+
+Separately
+
+- Using 'denominator df'= no. PSU - no. strata helps to improve the finite-sample approximation, especially for Wald-type test
+
+
+
+
+
+

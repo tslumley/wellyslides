@@ -1,0 +1,447 @@
+---
+title: "Exploratory analysis and regression (in R)"
+author: "Thomas Lumley"
+date: "6-7 July 2016"
+output:
+  slidy_presentation: default
+  ioslides_presentation:
+    mathjax: local
+    self_contained: no
+transitions: faster
+---
+
+## Outline
+
+- summary statistics
+- scatterplots
+- scatterplot smoothers
+- conditioned scatterplots
+- regression models
+- maps
+
+## Why we care
+
+Analytic modelling of survey data is important, over and above just tabulating
+
+People will do it better if they can use most of the same approaches they use for cohort or panel data.
+
+Tools for exploratory analysis are still a gap in many texts and most software.
+￼￼￼
+
+```{r, echo=FALSE}
+library(survey,quietly=TRUE,warn=FALSE)
+library(hexbin, quietly=TRUE, warn=FALSE)
+library(lattice,quietly=TRUE,warn=FALSE)
+library(splines,quietly=TRUE)
+suppressMessages(library(KernSmooth,quietly=TRUE))
+suppressMessages(library(quantreg,quietly=TRUE))
+data(api)
+apiclus2$stype = factor(as.character(apiclus2$stype),levels=c("E","M","H"))
+apiclus1$stype = factor(as.character(apiclus1$stype),levels=c("E","M","H"))
+apistrat$stype = factor(as.character(apistrat$stype),levels=c("E","M","H"))
+apiclus2$scaledw = apiclus2$pw*6194/sum(apiclus2$pw)
+dclus1<-svydesign(id=~dnum, fpc=~fpc, data=apiclus1)
+dclus2<-svydesign(id=~dnum+snum, weights=~scaledw, 
+                  data=apiclus2,fpc=~fpc1+fpc2)
+dstrat<-svydesign(id=~1, strata=~stype, fpc=~fpc, data=apistrat)
+```
+
+
+## Other variance estimation
+
+Supply replicate weights instead of design meta-data: use `svrepdesign()`
+
+Or, create them from a design object: use `as.svrepdesign()` (JK1, JKn, BRR,  bootstraps)
+
+Various PPS linearisation estimators also available 
+
+## Exploratory graphics
+
+- Graphs of summary statistcs
+- Graphics of whole distribution
+
+
+## Summary statistics: 
+
+```{r}
+barplot(svyby(~enroll,~stype,design=dstrat,svymean),
+         xlab="Mean school size",col="goldenrod")
+```
+
+## Forest plots
+
+```{r, fig.height=3,fig.width=4}
+library(rmeta)
+means<-svyby(~enroll,~stype,design=dstrat,svymean)
+metaplot(coef(means),SE(means),labels=names(coef(means)),
+         nn=1,boxsize=0.2,
+         xlab="Mean school size",ylab="School type")
+```
+
+## Distributions
+
+- Reweight the CDF: $$\hat F(t)= \frac{\sum_{i}w_i (x_i<t)}{\sum_i w_i}$$
+- Reweight the density estimator $$\hat f(x)\propto \sum_{i} k(x-x_i)w_i$$
+- Reweight an estimating function : $$\sum_i w_iU_i(x))=0$$
+ 
+Usually choose default bandwidth as if SRS of same size.
+
+## CDF
+```{r, fig.height=3, mar =TRUE}
+cdf.est<-svycdf(~enroll+api00, dstrat)
+cdf.pop<-ecdf(apipop$enroll)
+cdf.samp<-ecdf(apistrat$enroll)
+plot(cdf.pop,main="Population vs sample", xlab="Enrollment")
+lines(cdf.samp,col="red",lwd=2)
+lines(cdf.est[["enroll"]],col.points="forestgreen",lwd=2)
+```
+
+
+## Boxplots
+
+```{r, mar=TRUE}
+svyboxplot(enroll~stype, design=dclus2, col="orange", all.outliers=TRUE)
+```
+
+## Density estimators
+```{r , mar=TRUE}
+plot(svysmooth(~api00, dclus2))
+```
+
+## Density estimators
+```{r,mar=TRUE}
+svyhist(~api00, dclus2, col="orange", main="")
+```
+
+## NHANES data: two 2-year waves 
+
+Complete code on `github/tslumley/regression-paper`
+
+```{r}
+nhanes<- read.csv("combined-data.csv")
+des<-svydesign(id=~SDMVPSU,strat=~SDMVSTRA,weights=~fouryearwt,
+   nest=TRUE, data=subset(nhanes, !is.na(WTDRD1)))
+des<-update(des, sodium=DR1TSODI/1000, potassium=DR1TPOTA/1000)
+des<-update(des, namol=sodium/23, kmol=potassium/39)
+des
+dim(des)
+```
+
+## Scatterplots: NHANES (14000 points)
+
+```{r}
+plot(BPXDAR~RIDAGEYR,data=nhanes, xlab="Age",ylab="Diastolic",pch=19)
+```
+
+
+## Scatterplots
+
+Hard because
+
+- data often large
+- want to incorporate weights
+- want to incorporate correlation within sampling units
+
+Approaches:
+
+- alpha-blending
+- hexagonal binning
+- brushing (in principle, not implemented)
+
+## Alpha-blending
+
+Use partially-transparent points:
+
+- overplotting can still be seen
+- amount of ink proportional to sampling weight
+- can still use colour to identify groups
+
+## NHANES: 14000 points
+```{r}
+svyplot(BPXDAR~RIDAGEYR,design=des, xlab="Age",ylab="Diastolic",style="trans",pch=19)
+```
+
+## NHANES: 14000 points
+```{r}
+svyplot(BPXSAR~RIDAGEYR,design=des, xlab="Age",ylab="Systolic",style="trans",pch=19,
+        basecol=function(df){ifelse(df$RIAGENDR==1,"blue","pink")})
+```
+
+## Hexagonal binning
+
+- Divide plotting area into hexagons
+- Collapse all the points in a grid cell into a small hexagon at the centre of mass
+- Fast, gives small files, even for very large data
+- Outliers are still visible
+
+(Dan Carr, 1987)
+
+## NHANES,  again
+```{r}
+svyplot(BPXDAR~RIDAGEYR,design=des, xlab="Age",ylab="Diastolic",style="hex",legend=0)
+```
+
+
+
+## Scatterplot smoothers
+
+We only need the curve, not a standard error estimate, so this is easy
+
+- For local linear/polynomial regression smoothers (eg loess) just add weights to local regressions
+- For quantile smoothers, 
+    * use regression splines and weights in a quantile regression (R)
+    * use kernel-weighted CDF estimators (Korn & Graubard)
+
+## NHANES blood pressure trends
+```{r eval=FALSE}
+l10<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.1)
+l25<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.25)
+l50<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.5)
+l75<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.75)
+l90<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.9)
+plot(BPXSAR~RIDAGEYR,data=nhanes,type="n",xlab="Age",ylab="Systolic")
+lines(l10,lty=3)
+lines(l25,col="grey",lwd=2)
+lines(l50,lwd=2)
+lines(l75,col="grey",lwd=2)
+lines(l90,lty=3)
+```
+
+---
+
+```{r echo=FALSE}
+l10<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.1)
+l25<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.25)
+l50<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.5)
+l75<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.75)
+l90<-svysmooth(BPXSAR~RIDAGEYR,design=des, method="quantreg",df=5,quantile=.9)
+plot(BPXSAR~RIDAGEYR,data=nhanes,type="n",xlab="Age",ylab="Systolic")
+lines(l10,lty=3)
+lines(l25,lty=2,lwd=2)
+lines(l50,lwd=2)
+lines(l75,lty=2,lwd=2)
+lines(l90,lty=3)
+```
+
+
+## Conditioning plots
+
+Show relationships in more than two dimensions by plotting `Y~X` conditioned on a range of `Z`
+
+- "Trellis" graphics, invented by Bill Cleveland
+- Implemented in R "lattice" package
+- survey versions in survey package: transparent or hexbin
+
+## Blood pressure, age, and sex
+```{r}
+svycoplot(BPXSAR~BPXDAR|cut(RIDAGEYR,c(0,21,40,60,100))*factor(RIAGENDR,labels=c("M","F")),design=des, xlab="Diastolic",ylab="Systolic",style="hex",xbins=30)
+```
+
+## Blood pressure, age, and sex
+```{r}
+svycoplot(BPXSAR~BPXDAR|cut(RIDAGEYR,c(0,21,40,60,100)),design=des, xlab="Age",ylab="Systolic",style="trans",
+        basecol=function(df){ifelse(df$RIAGENDR==1,"blue","pink")})
+```
+<img src="nhanes-sysdiasex-trans.png" style="width: 600px;"/>
+
+## And a new idea: (so new there's a bug in the CRAN version)
+```{r}
+library(hextri)
+dd<-model.frame(des)[,c("RIDAGEYR","BPXSAR","fouryearwt","RIAGENDR")]
+dd<-subset(na.omit(dd), BPXSAR>50 & BPXSAR<200)
+hextri(BPXSAR~RIDAGEYR, weights=fouryearwt, class=RIAGENDR,nbins=40,
+       style="size",col=c("orange","purple"),data=dd)
+```
+
+
+```{r, echo=FALSE,message=FALSE}
+library(knitr)
+library(survey,warn.conflicts=FALSE)
+library(KernSmooth)
+options(scipen=2)
+knit_hooks$set(mar = function(before, options, envir) {
+    if (before) par(mar = c(4, 4, .1, .1))  # smaller margin on top and right
+})
+load("nhanessurvey.rda")
+load("esophsurvey.rda")
+```
+
+## Regression models
+
+Instead of solving the Normal equations
+$$X^T(Y-\mu)=0$$
+we solve weighted Normal equations
+$$X^TW(Y-\mu)=0$$
+where $W=\mathrm{diag}(\pi_i^{-1})$
+
+Under no assumptions about $Y|X$, $\hat\beta$ is consistent for the population least-squares line.
+
+Variances from delta-method ('sandwich') or resampling.
+
+## Assumptions in regression
+
+For inference about population associations:
+
+- distribution of residuals not important
+- linearity is important for confounders, not for exposure of interest
+
+## Do we need weights?
+
+If $E[Y|X=x]=x\beta$, so the model is correctly specified **and** the weights are independent of $Y$ given $X$
+
+- no bias from omitting weights
+- loss of precision from including weights
+
+Bias/variance tradeoff: the larger the survey, the more we care about bias, so the more we want to include the weights
+
+- can't reliably tell from data, because bias of same order as standard error is not reliably detectable.
+
+## Do we need all the weights?
+
+If $E[Y|X=x]=x\beta$, but weights do not just depend on $x$, can replace weights by
+$w_i = g(x_i)/\pi_i$ for **any** function $g$.
+
+Optimal $g()$ minimises the coefficient of variation of $w_i$, not far from $g(x)=E[\pi_i^{-1}|X=x]$
+
+(Pfefferman & Sverchkov, 1999; Brumback, Hernán, and Robins, 2000: "stabilised weights")
+
+Useful when $\pi_i$ depends strongly on $x$, weakly on $Y$.
+
+## Other regression models
+
+Same principle for generalised linear models: weighted likelihood equation
+$$D^TV^{-1}W(Y-\mu)=0$$
+
+Similar principle for Cox model (Binder, 1992), loglinear models (Rao & Scott, 1981), proportional odds model, parametric survival models, etc, etc.
+
+Main exception is mixed models: these model **pairs** of observations, so can't just reweight with $\pi_i$.
+
+## R functions
+
+- `svyglm()` for linear and generalised linear models
+- `svycoxph()` for Cox proportional hazards model
+- `svyolr()` for proportional odds and other cumulative link models
+- `svyloglin()` for loglinear models of contingency tables
+- `svymle()` or `withReplicates()` for adding your own. 
+
+All take a model formula and a survey object, plus other options.
+
+## NHANES data example
+Data on blood pressure and diet from the US NHANES health survey.
+
+Complex four-stage survey, but public-use data approximates by two-stage design.
+
+```
+nhanesdes <- svydesign(id=~SDMVPSU, strata=~SDMVSTRA, 
+      weights=~fouryearwt, nest=TRUE
+      data=subset(nhanes, !is.na(WTDRD1)))
+nhanesdes <- update(nhanesdes, sodium=DR1TSODI/1000
+      potassium=DR1TPOTA/1000)
+nhanesdes <- update(nhanesdes, namol = sodium/23, 
+      kmol= potassium/23)
+nhanesdes <- update(nhanesdes, htn = (BPXSAR>140) | (BPXDAR>90))
+```
+
+## Linear regression example
+
+```{r}
+coef(summary(model<-svyglm(BPXSAR~RIAGENDR+RIDAGEYR+factor(RIDRETH1)
+                    +BMXBMI+sodium+potassium, 
+               design=nhanesdes)))
+```
+
+##
+
+Is the relationship nonlinear?
+
+```{r}
+termplot(model,terms=5,partial=TRUE,smooth=panel.smooth)
+```
+
+## Perhaps age is nonlinear?
+```{r}
+library(splines)
+model2<-svyglm(BPXSAR~RIAGENDR*ns(RIDAGEYR,4)+factor(RIDRETH1)
+                    +BMXBMI+sodium+potassium, 
+               design=nhanesdes)
+coef(summary(model2))[c("sodium","potassium"),]
+```
+
+No real change. Weak association may be due to measurement error.
+
+## Some tests
+```{r}
+AIC(model,model2)
+regTermTest(model2, ~sodium+potassium)
+```
+
+##
+
+```{r}
+regTermTest(model2, ~factor(RIDRETH1),method="Wald")
+regTermTest(model2, ~factor(RIDRETH1),method="LRT")
+```
+
+## Tests in regression 
+
+Basic idea: Rao & Scott (1981,1984) work out the sampling distribution of the pseudolikelihood ratio and the Pearson $X^2$ score statistic in contingency tables
+
+Lumley & Scott (2015) extend this to generalised linear models with arbitrary covariates.
+
+- The efficient score is asymptotically Normal, so the score $X^2$ is a quadratic form in Normals
+- The log pseudolikelihood is smooth at the maximum, so is approximately quadratic in $\hat\theta-\theta$
+- The Wald statistic is $\chi^2_p$
+
+Quadratic forms have a known (messy, but computable) distribution
+
+## AIC
+
+AIC is  
+
+ - deviance minus its expectation
+ - leave-one-out prediction error
+ - optimal for prediction error
+
+Rather than $-2\ell+2p$, use $-2\hat\ell+2\hat\Delta$, where $\hat\Delta$ is the trace of a design-effect matrix.
+
+Under iid sampling, correct model, eigenvalues are 1 or 0 and $\Delta=p$. 
+
+Under complex sampling, we can estimate it: if $A^{-1}BA^{-1}$ is sandwich estimator, $\hat\Delta$ is trace of $A^{-1}B$
+
+## BIC
+
+Can't just use pseudolikelihood because BIC is about posterior probabilities, not allowed to cheat.
+
+- Take a maximal model $\mathcal{M}$ with parameter estimates $\hat\theta_M$.   
+- Treat $\hat\theta_M$ as the data, with a Gaussian likelihood and flat prior
+- Submodels of $\mathcal{M}$ also have Gaussian likelihoods
+- Use the ordinary BIC on these Gaussian models
+
+Comes out as a penalised Wald statistic, with penalty $p\log n^*$ for an effective sample size $n^*$.
+
+(Lumley & Scott, J. Survey Stat Methodology, 2016)
+
+## Maps
+
+R has some maps, can handle shapefiles
+
+```{r, eval=FALSE}
+brfss<-update(brfss, agegp=cut(AGE, c(0,35,50,65,Inf)))
+hlth<-svyby(~I(HLTHPLAN==1), ~agegp+X_STATE, svymean, 
+    design=brfss)
+    
+hlthdata<-reshape(hlth[,c(1,2,4)],idvar="X_STATE",
+    direction="wide",timevar="agegp")    
+names(hlthdata)[2:5]<-paste("age",1:4,sep="")
+    
+states@data<-merge(states,hlthdata,
+    by.x="ST_FIPS",by.y="X_STATE",all=FALSE)
+spplot(states,c("age1","age2","age3","age4"), 
+    names.attr=c("<35","35-50","50-65","65+"))
+```
+
+## Insurance
+
+<img src="insurance.png" style="width: 700px;"/>
+
+

@@ -1,0 +1,14 @@
+ 	Variable	Label
+1	age	age of respondent in questionnaire.
+2	sex	sex of respondent from household grid.
+3	hboard	Health Board
+4	carstg5	carstairs deprivation index (higher->deprived)
+5	cigst1	cigarette smoking status-never/ex-reg/ex-occ/current
+6	cigst2	cigarette smoking amount - banded current smokers
+7	nofad	number of adults at address
+8	sc	social class (adult respondent)
+9	weighta	weight variable (with some random noise added)
+10	grosswt	weight grossed to population totals
+11	idno	sequential ID
+12	psu	PSU no
+13	regstrat	unique stratum no

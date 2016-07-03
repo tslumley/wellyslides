@@ -1,0 +1,295 @@
+          1994 Survey of ASA Membership on 
+                    Certification
+                          
+          by Bert Gunter, Chair, Interim Certification Committee
+
+Note: Uwe Koehn and Ron Snee, the other members of the
+certification committee, assisted in the data analysis and preparation
+of this report.
+
+     Below are the results of the ASA survey on certification. Five
+thousand responses, or about 1/4 of ASA membership, were received. 
+Because these results are not based on a scientific sample survey and
+because we on this committee do not claim to be experts in survey
+analysis, we have made no attempt to do any extensive modeling of
+how the results might be associated with the demographics beyond the
+few brief comments that  follow. For readers interested in such
+matters, the  ascii file, certsurvey.dat,  in the ASACERT archive on
+Statlib contains the raw response data. Format information can be
+found in the file, certsurvey.fmt.
+
+The marginal totals from the ASA survey are:
+
+Should the ASA develop some form of certification?
+          YES                 1,321
+          POSSIBLY            1,114
+          NO OPINION            269
+          UNLIKELY              337
+          NO                  1,948
+          NO RESPONSE            12
+          
+Would you approve of a certification program similar to that described
+in the July 1993 issue of
+Amstat News?
+          YES                   766
+          POSSIBLY            1,025
+          NO OPINION            820
+          UNLIKELY              470
+          NO                  1,818
+          NO RESPONSE           102
+          
+Should there be specific certification programs for statistics sub-disciplines?
+          YES                   552
+          POSSIBLY              901
+          NO OPINION            451
+          UNLIKELY              488
+          NO                  2,546
+          NO RESPONSE            63
+          
+If the ASA developed a Certification program would you attempt to become certified?
+          YES                 1,566
+          POSSIBLY            1,119
+          NO OPINION            212
+          UNLIKELY              573
+          NO                  1,489
+          NO RESPONSE            42
+                  
+If the ASA offered certification should re-certification be required
+every several years?
+          YES                   951
+          POSSIBLY              936
+          NO OPINION            596
+          UNLIKELY              404
+          NO                  2,022
+          NO RESPONSE            92
+          
+The various Sections of the ASA, listed below, provide a reasonable
+list of the sub-disciplines of
+statistics.  Please use these Section titles to indicate your major
+sub-discipline(s) using two letter
+acronyms.  You are limited to three choices.  You need not use all three.
+     1st Choice BA                   156
+     2nd Choice BA                    73
+     3rd Choice BA                    61
+     
+     1st Choice BI                   972
+     2nd Choice BI                   376
+     3rd Choice BI                   121
+     
+     1st Choice BP                   527
+     2nd Choice BP                   249
+     3rd Choice BP                    63
+     
+     1st Choice BE                   528
+     2nd Choice BE                   219
+     3rd Choice BE                   127
+     
+     1st Choice CM                   325
+     2nd Choice CM                   484
+     3rd Choice CM                   314
+     
+     1st Choice CE                   189
+     2nd Choice CE                   227
+     3rd Choice CE                   205
+     
+     1st Choice EN                   168
+     2nd Choice EN                   178
+     3rd Choice EN                    91
+     
+     1st Choice GV                   238
+     2nd Choice GV                   239
+     3rd Choice GV                   150
+     
+     1st Choice TH                   107
+     2nd Choice TH                   273
+     3rd Choice TH                   161
+     
+     1st Choice MR                    86
+     2nd Choice MR                   104
+     3rd Choice MR                    64
+     
+     1st Choice QP                   349
+     2nd Choice QP                   352
+     3rd Choice QP                   180
+     
+     
+     1st Choice PE                   459
+     2nd Choice PE                   324
+     3rd Choice PE                   181
+     
+     1st Choice SS                   288
+     2nd Choice SS                   325
+     3rd Choice SS                   191
+     
+     1st Choice SR                   287
+     2nd Choice SR                   320
+     3rd Choice SR                   252
+     
+     1st Choice SG                    33
+     2nd Choice SG                   220
+     3rd Choice SG                   274
+     
+     1st Choice SP                     9
+     2nd Choice SP                    33
+     3rd Choice SP                    60
+     
+     1st Choice OTHER                 11
+     2nd Choice OTHER                  8
+     3rd Choice OTHER                  6
+     
+     1st Choice NO RESP.             269
+     2nd Choice NO RESP.             997
+     3rd Choice NO RESP.           2,500
+     
+Highest Collegiate Degree.
+     NONE                             19
+     BS OR BA                        275
+     MS                            1,640
+     PhD                           3,036
+     OTHER                             2
+     NO RESPONSE                      29
+     
+Are you:
+     EMPLOYED                      4,248
+     SELF-EMPLOYED                   245
+     RETIRED                         234
+     UNEMPLOYED                       53
+     IN SCHOOL                       205
+     OTHER                             1
+     NO RESPONSE                      15
+     
+You work primarily in:
+     INDUSTRY                      1,809
+     ACADEMIA                      2,221
+     GOVERNMENT                      880
+     OTHER                             1
+     NO RESPONSE                      90
+     
+You are primarily a:
+     RESEARCHER                    1,628
+     EDUCATOR                        968
+     CONSULTANT                    1,060
+     PRACTITIONER                  1,077
+     STUDENT                         188
+     OTHER                             7
+     NO RESPONSE                      73
+     
+For how many years have you been a member of the ASA?
+       1-5 years                   1,472
+      6-10 years                     846
+     11-15 years                     752
+     16-20 years                     790
+     21-25 years                     431
+     26-30 years                     313
+     31-35 years                     117
+     36-40 years                      97
+     41-45 years                      28
+     46-50 years                      38
+     51 or more years                 18
+     NO RESPONSE                      99
+     
+
+     In brief, interpreting YES or POSSIBLY as positive and
+UNLIKELY or NO as negative, it is clear from the first question that
+respondents were split nearly evenly for and against the general
+concept of certification, although it is also clear that those against
+were decidedly more negative than those for were positive. The
+response to the second question shows somewhat less support and
+considerably greater fence-sitting regarding the specific certification
+program that has been proposed. This may reflect a lack of familiarity
+among some members with the details as well as the view that the
+proposal requires improvement.  A bit puzzling is the fact that there
+were fewer NO's for this question than for the first, as one would
+expect that those unequivocally opposed to the concept of certifica
+tion would also oppose a specific proposal for it.  The results from the
+remaining questions are self-explanatory.
+
+     One hypothesis that might be entertained is that the survey
+responses would tend to follow demographic lines that reflect the
+different occupations and interests of the respondents. Two ways to
+examine this hypothesis would be to see how responses depended on
+the two questions asking for primary work area (Industry, Academia,
+Government, Other) and job description (Researcher, Educator,
+Consultant, Practitioner, Student, Other). As a rough indication, one
+might hypothesize that those more involved in day-to-day practice
+would generally favor certification more than those who are primarily
+involved in research and education (clearly, there are many potential
+pitfalls in such an oversimplified dichotomy). A quick way to look at
+this is to dichotomize the work area as Industry/Government versus
+Academia, and dichotomize job description as Consultant/Practitioner
+versus Researcher/Educator/Student (we note that there were only
+188 respondents who identified themselves as students, so the possible
+ambiguities there have little effect). Here are those results, further
+categorized by highest educational degree (B= Bachelor's or less, M=
+Master's, P = PhD). YES = Yes or Possibly; NO = Unlikely or No.
+Note that the numbers do not add up because of different amounts of
+nonresponses for the different demographic questions:
+
+     Cons/Pract          Res/Educ/Student
+     B    M    P         B    M    P
+YES  88   538  459       66   317  925
+NO   60   431  449       50   243  1006
+
+     Ind/Govt       Academia
+     B    M    P         B    M    P
+YES  117  656  538       34   194  839
+NO   85   530  617       28   144  839
+
+     These simple results do not indicate any strong association
+between views on certification (as measured by the first question) and 
+respondents'  occupations. Another way that one might consider this
+question is by categorizing on section membership. For those cases in
+which primary section membership was recorded and for those
+sections with more than ten total responses, results were (from most
+positive to most negative):
+
+ Section  YES       NO
+
+  QP      222       118
+  MR       44        31
+  EN       94        68
+  CE       99        72
+  CM      175       134
+  PE      231       197
+  TH       51         46
+  BI      477       455
+  SR      140       134
+  BP      255       250
+  BE      246       249
+  GV        98      125
+  SS      117       154
+  BA       60        84
+  SG       11        18
+
+The strong positive response in the QP (Quality and Productivity)
+section and the rather negative responses in the GV (Government), SS
+(Social Statistics), and BA (Bayesian) sections stand out. A standard
+contingency table analysis gives a chi-squared value of 58  (14 df) for
+the whole table of which 23.8 is due to QP, 5.9 to GV, 8.6 to SS, and
+6.3 to BA.  Obviously, more sophisticated analyses could be done, but
+we shall leave these delights to others.     
+
+     Finally, readers will have noticed the association of responses
+with academic degree. Simply categorizing on this factor. the results
+for the first question are, in percentages:
+               
+          B,M  PhD  
+                    
+YES       53%  46%  
+NO        41%  48.5%
+N/O        6%   5.5%
+               
+Clearly, non-PhD's are more positive about certification than PhD's. 
+
+===============================================================
+The format of the raw data
+===============================================================
+The file is in ascii format.
+Each record consists of 13 contiguous fields corresponding to the
+13 questions. Blanks indicate missing data. Fields 1-5 and 9-12 are
+1 character wide. Fields 6-8 and 13 are 2 characters wide. In field
+1-5,  1 = yes, 2 = possibly, etc. and 0 = no response. Fields 6-8
+give the two letter acronyms for sections in the survey.  Fields 9-
+12 give one letter initials corresponding to each question s
+choices. Field 13 gives the number of years of membership in
+ASA.
